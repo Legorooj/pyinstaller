@@ -1,0 +1,37 @@
+name: Git Bisect pyinstaller on OSX
+
+on:
+  push:
+    branches: [ track_qtqml_failiure ]
+
+jobs:
+  build:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      
+    - name: Set up Python 3.7
+      uses: actions/setup-python@v1
+      with:
+        python-version: 3.7
+      
+    - name: Build bootloader
+      run: |
+        cd bootloader
+        python ./waf all
+        cd ..
+    
+    - name: Install PyInstaller
+      run: pip install -e .
+    
+    - name: Install Qt
+      run: pip install pyqt5 pyside2
+    
+    - name: Bisect to find the bug
+      run: |
+        git bisect start
+        git bisect bad
+        git bisect good afe197d48da07b571930
+        git bisect run "pytest tests/functional/test_libraries::test_Qt5_QtQml"
