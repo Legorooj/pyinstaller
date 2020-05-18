@@ -19,4 +19,4 @@ from pyimod03_importers import FrozenImporter
 # and other stuff. 'pkg_resources.NullProvider' is dedicated to PEP302
 # import hooks like FrozenImporter is. It uses method __loader__.get_data() in
 # methods pkg_resources.resource_string() and pkg_resources.resource_stream()
-res.register_loader_type(FrozenImporter, res.NullProvider)
+res.register_loader_type(FrozenImporter, res.DefaultProvider)
