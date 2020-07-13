@@ -355,7 +355,6 @@ class Analysis(Target):
         # The attribute is the set of paths to use for imports: sys.path,
         # plus our loader, plus other paths from e.g. --path option).
         self.graph.path = self.pathex + self.graph.path
-        self.graph.set_setuptools_nspackages()
 
         logger.info("running Analysis %s", self.tocbasename)
         # Get paths to Python and, in Windows, the manifest.
@@ -410,7 +409,7 @@ class Analysis(Target):
         # Save the graph nodes of each in sequence.
         for script in self.inputs:
             logger.info("Analyzing %s", script)
-            priority_scripts.append(self.graph.run_script(script))
+            priority_scripts.append(self.graph.add_script(script))
 
         # Analyze the script's hidden imports (named on the command line)
         self.graph.add_hiddenimports(self.hiddenimports)

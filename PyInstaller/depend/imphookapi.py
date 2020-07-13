@@ -20,7 +20,8 @@ modifications into appropriate operations on the current `PyiModuleGraph`
 instance, thus modifying which modules will be frozen into the executable.
 """
 
-from ..lib.modulegraph.modulegraph import RuntimeModule, RuntimePackage
+from ..lib.modulegraph import RuntimeModule, RuntimePackage, Alias
+from ..depend.analysis import PyiModuleGraph
 from ..building.datastruct import TOC
 from ..building.utils import format_binaries_and_datas
 
@@ -79,13 +80,12 @@ class PreSafeImportModuleAPI(object):
         Fully-qualified name of this module (e.g., `email.mime.text`).
     """
 
-    def __init__(self, module_graph, module_basename, module_name,
+    def __init__(self, module_graph: PyiModuleGraph, module_basename, module_name,
                  parent_package):
         self._module_graph = module_graph
         self.module_basename = module_basename
         self.module_name = module_name
         self._parent_package = parent_package
-
 
     # Immutable properties. No corresponding setters are defined.
     @property
@@ -97,7 +97,6 @@ class PreSafeImportModuleAPI(object):
     def parent_package(self):
         """Parent Package of this node"""
         return self._parent_package
-
 
     def add_runtime_module(self, module_name):
         """
@@ -131,7 +130,6 @@ class PreSafeImportModuleAPI(object):
 
         self._module_graph.add_module(RuntimeModule(module_name))
 
-
     def add_runtime_package(self, package_name):
         """
         Add a graph node representing a non-namespace Python package with the
@@ -163,7 +161,6 @@ class PreSafeImportModuleAPI(object):
 
         self._module_graph.add_module(RuntimePackage(package_name))
 
-
     def add_alias_module(self, real_module_name, alias_module_name):
         """
         Alias the source module to the target module with the passed names.
@@ -183,8 +180,11 @@ class PreSafeImportModuleAPI(object):
             the alias to be created).
         """
 
-        self._module_graph.alias_module(real_module_name, alias_module_name)
-
+        self._module_graph.add_implies(
+            {
+                alias_module_name: Alias(real_module_name)
+            }
+        )
 
     def append_package_path(self, directory):
         """
@@ -201,7 +201,7 @@ class PreSafeImportModuleAPI(object):
             package's `__path__` attribute.
         """
 
-        self._module_graph.append_package_path(self.module_name, directory)
+        self._module_graph.add_extra_path(self.module_name, directory)
 
 
 class PreFindModulePathAPI(object):
@@ -367,9 +367,9 @@ class PostGraphAPI(object):
         self.___path__ = tuple(self.module.packagepath) \
             if self.module.packagepath is not None else None
 
-        #FIXME: Refactor "_added_datas", "_added_binaries", and
-        #"_deleted_imports" into sets. Since order of importation is
-        #significant, "_added_imports" must remain a list.
+        # FIXME: Refactor "_added_datas", "_added_binaries", and
+        # "_deleted_imports" into sets. Since order of importation is
+        # significant, "_added_imports" must remain a list.
 
         # Private attributes.
         self._added_binaries = []
