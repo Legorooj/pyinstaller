@@ -40,6 +40,7 @@ DECLVAR(Py_NoUserSiteDirectory);
 DECLVAR(Py_OptimizeFlag);
 DECLVAR(Py_VerboseFlag);
 DECLVAR(Py_UnbufferedStdioFlag);
+DECLVAR(Py_None);
 
 /* functions with prefix `Py_` */
 DECLPROC(Py_BuildValue);
@@ -54,6 +55,7 @@ DECLPROC(Py_SetPythonHome);
 
 /* other functions */
 DECLPROC(PyDict_GetItemString);
+DECLPROC(PyDict_SetItemString);
 DECLPROC(PyErr_Clear);
 DECLPROC(PyErr_Occurred);
 DECLPROC(PyErr_Print);
@@ -108,6 +110,7 @@ pyi_python_map_names(HMODULE dll, int pyvers)
     GETVAR(dll, Py_OptimizeFlag);
     GETVAR(dll, Py_VerboseFlag);
     GETVAR(dll, Py_UnbufferedStdioFlag);
+    GETVAR(dll, Py_None);
 
     /* functions with prefix `Py_` */
     GETPROC(dll, Py_BuildValue);
@@ -123,6 +126,7 @@ pyi_python_map_names(HMODULE dll, int pyvers)
 
     /* other functions */
     GETPROC(dll, PyDict_GetItemString);
+    GETPROC(dll, PyDict_SetItemString);
     GETPROC(dll, PyErr_Clear);
     GETPROC(dll, PyErr_Occurred);
     GETPROC(dll, PyErr_Print);

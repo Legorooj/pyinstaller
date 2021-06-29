@@ -65,6 +65,9 @@ EXTDECLVAR(int, Py_DontWriteBytecodeFlag);
 EXTDECLVAR(int, Py_NoUserSiteDirectory);
 EXTDECLVAR(int, Py_UnbufferedStdioFlag);
 
+/* Py_None */
+EXTDECLVAR(PyObject *, Py_None);
+
 /* This initializes the table of loaded modules (sys.modules), and creates the fundamental modules builtins, __main__ and sys. It also initializes the module search path (sys.path). It does not set sys.argv; */
 EXTDECLPROC(int, Py_Initialize, (void));
 /* Undo all initializations made by Py_Initialize() and subsequent use of Python/C API functions, and destroy all sub-interpreters. */
@@ -101,6 +104,7 @@ EXTDECLPROC(PyObject *, PyObject_CallFunction, (PyObject *, char *, ...));
 EXTDECLPROC(PyObject *, PyObject_CallFunctionObjArgs, (PyObject *, ...));
 EXTDECLPROC(PyObject *, PyModule_GetDict, (PyObject *));
 EXTDECLPROC(PyObject *, PyDict_GetItemString, (PyObject *, char *));
+EXTDECLPROC(int, PyDict_SetItemString, (PyObject *, char *, PyObject *));
 EXTDECLPROC(void, PyErr_Clear, (void) );
 EXTDECLPROC(PyObject *, PyErr_Occurred, (void) );
 EXTDECLPROC(void, PyErr_Print, (void) );

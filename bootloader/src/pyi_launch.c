@@ -473,17 +473,19 @@ pyi_launch_run_scripts(ARCHIVE_STATUS *status)
 
     __main__ = PI_PyImport_AddModule("__main__");
 
-    if (!__main__) {
+    if (__main__ == NULL) {
         FATALERROR("Could not get __main__ module.");
         return -1;
     }
 
     main_dict = PI_PyModule_GetDict(__main__);
 
-    if (!main_dict) {
+    if (main_dict == NULL) {
         FATALERROR("Could not get __main__ module's dict.");
         return -1;
     }
+
+    PI_PyDict_SetItemString(main_dict, "__cached__", PI_Py_None);
 
     /* Iterate through toc looking for scripts (type 's') */
     while (ptoc < status->tocend) {
@@ -498,7 +500,7 @@ pyi_launch_run_scripts(ARCHIVE_STATUS *status)
             }
             VS("LOADER: Running %s.py\n", ptoc->name);
             __file__ = PI_PyUnicode_FromString(buf);
-            PI_PyObject_SetAttrString(__main__, "__file__", __file__);
+            PI_PyDict_SetItemString(main_dict, "__file__", __file__);
             Py_DECREF(__file__);
 
             /* Unmarshall code object */
