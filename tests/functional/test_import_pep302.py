@@ -20,23 +20,16 @@
 #
 # This test-cases test the return values of these functions for importers from pyimod02_importers module.
 
-# Note: The modules need to be imported at the end of the resp. code. Otherwise the pkgutil-functions take a very
+# Note: The modules need to be imported at the end of the resp. code. Otherwise the spec lookups take a very
 #       different branch (since the module is already in sys.modules) and what we want to test will not be tested.
-
-import pytest
-
-from PyInstaller import compat
-
-# All tests here require `pkgutil.get_loader()`, which was deprecated in python 3.12 and removed in 3.14.
-pytestmark = pytest.mark.skipif(compat.is_py314, reason="pkgutil.get_loader() was removed in python >= 3.14.")
 
 
 def test_pep302_loader_builtin(pyi_builder):
     pyi_builder.test_source(
         """
         mod = 'sys'
-        import pkgutil
-        ldr = pkgutil.get_loader(mod)
+        import importlib.util
+        ldr = importlib.util.find_spec(mod).loader
         assert ldr
         assert ldr.is_package(mod) == False
         assert ldr.get_code(mod) is None
@@ -49,8 +42,8 @@ def test_pep302_loader_frozen_module(pyi_builder):
     pyi_builder.test_source(
         """
         mod = 'compileall'
-        import pkgutil
-        ldr = pkgutil.get_loader(mod)
+        import importlib.util
+        ldr = importlib.util.find_spec(mod).loader
         assert ldr
         assert ldr.is_package(mod) == False
         assert ldr.get_code(mod) is not None
@@ -65,8 +58,8 @@ def test_pep302_loader_frozen_package(pyi_builder):
     pyi_builder.test_source(
         """
         mod = 'json'
-        import pkgutil
-        ldr = pkgutil.get_loader(mod)
+        import importlib.util
+        ldr = importlib.util.find_spec(mod).loader
         assert ldr
         assert ldr.is_package(mod) == True
         assert ldr.get_code(mod) is not None
@@ -81,8 +74,8 @@ def test_pep302_loader_frozen_submodule(pyi_builder):
     pyi_builder.test_source(
         """
         mod = 'json.encoder'
-        import pkgutil
-        ldr = pkgutil.get_loader(mod)
+        import importlib.util
+        ldr = importlib.util.find_spec(mod).loader
         assert ldr
         assert ldr.is_package(mod) == False
         assert ldr.get_code(mod) is not None
@@ -97,8 +90,8 @@ def test_pep302_loader_cextension(pyi_builder):
     pyi_builder.test_source(
         """
         mod = '_sqlite3'
-        import pkgutil
-        ldr = pkgutil.get_loader(mod)
+        import importlib.util
+        ldr = importlib.util.find_spec(mod).loader
         assert ldr
         assert ldr.is_package(mod) == False
         assert ldr.get_code(mod) is None
