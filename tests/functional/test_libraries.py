@@ -9,10 +9,12 @@
 # SPDX-License-Identifier: (GPL-2.0-or-later WITH Bootloader-exception)
 #-----------------------------------------------------------------------------
 
+import pathlib
+
 import pytest
 
 from PyInstaller import compat
-from PyInstaller.utils.tests import importorskip, skipif, requires
+from PyInstaller.utils.tests import importable, importorskip, onedir_only, parametrize, requires, skipif
 from PyInstaller.utils.hooks import can_import_module, tcl_tk
 
 
@@ -446,3 +448,458 @@ def test_babel(pyi_builder):
         print(format_datetime(datetime_obj, 'full', locale='fr_FR'))
         """
     )
+
+
+# ---------------------------------------------------------------------------
+# Pillow (PIL)
+# ---------------------------------------------------------------------------
+
+# Functional test that tries to convert a .tiff image to a .png
+@importorskip('PIL')
+def test_pil_image_conversion(pyi_builder, tmp_path):
+    pyi_builder.test_source(
+        """
+        import sys
+        import os
+
+        import PIL.Image
+
+        if len(sys.argv) != 3:
+            print(f"use: {sys.argv[0]} <input-filename> <output-filename>")
+            raise SystemExit(1)
+
+        input_file = sys.argv[1]
+        output_file = sys.argv[2]
+
+        image = PIL.Image.open(input_file)
+        image.save(output_file)
+        """,
+        app_args=[
+            str(pathlib.Path(__file__).parent / 'data' / 'PIL_images' / 'tinysample.tiff'),
+            str(tmp_path / 'converted_tinysample.png'),
+        ],
+    )
+
+
+@importorskip('PIL')
+@importorskip('PyQt5')
+def test_pil_pyqt5(pyi_builder):
+    # hook-PIL is excluding PyQt5, but is must still be included since it is imported elsewhere.
+    # Also see issue #1584.
+    pyi_builder.test_source("""
+        import PyQt5
+        import PIL
+        import PIL.ImageQt
+        """)
+
+
+@importorskip('PIL')
+def test_pil_plugins(pyi_builder):
+    pyi_builder.test_source(
+        """
+        # Verify packaging of PIL.Image.
+        from PIL.Image import frombytes
+        print(frombytes)
+
+        # PIL import hook should bundle all available PIL plugins. Verify that plugins are collected.
+        from PIL import Image
+        Image.init()
+        MIN_PLUG_COUNT = 7  # Without all plugins the count is usually 6.
+        plugins = list(Image.SAVE.keys())
+        plugins.sort()
+        if len(plugins) < MIN_PLUG_COUNT:
+            raise SystemExit('No PIL image plugins were collected!')
+        else:
+            print('PIL supported image formats: %s' % plugins)
+        """
+    )
+
+
+# The tkinter module may be available for import, but not actually importable due to missing shared libraries.
+# Therefore, we need to use `can_import_module`-based skip decorator instead of `@importorskip`.
+@pytest.mark.skipif(not can_import_module("tkinter"), reason="tkinter cannot be imported.")
+@importorskip('PIL')
+def test_pil_no_tkinter(pyi_builder):
+    """
+    Ensure that the Tkinter package excluded by `PIL` package hooks is unimportable by frozen applications explicitly
+    importing only the latter.
+    """
+
+    pyi_builder.test_source(
+        """
+        import PIL.Image
+
+        # Dynamically importing the Tkinter package should fail with an "ImportError", implying "PIL" package hooks
+        # successfully excluded Tkinter. To prevent PyInstaller from parsing this import and thus freezing this
+        # extension with this test, this import is dynamic.
+        try:
+            __import__('tkinter')
+            raise SystemExit('ERROR: Module tkinter is bundled.')
+        except ImportError:
+            pass
+
+        # Dynamically importing the "_tkinter" shared library should also fail.
+        try:
+            __import__('_tkinter')
+            raise SystemExit('ERROR: Module _tkinter is bundled.')
+        except ImportError:
+            pass
+        """
+    )
+
+
+# The tkinter module may be available for import, but not actually importable due to missing shared libraries.
+# Therefore, we need to use `can_import_module`-based skip decorator instead of `@importorskip`.
+@pytest.mark.skipif(not can_import_module("tkinter"), reason="tkinter cannot be imported.")
+@importorskip('PIL')
+def test_pil_tkinter(pyi_builder):
+    """
+    Ensure that the Tkinter package excluded by `PIL` package hooks is importable by frozen applications explicitly
+    importing both.
+
+    == See Also ==
+
+    * PyInstaller [issue #1584](https://github.com/pyinstaller/pyinstaller/issues/1584).
+    """
+
+    pyi_builder.test_source(
+        """
+        import PIL.Image
+
+        # Statically importing the Tkinter package should succeed, implying this importation successfully overrode
+        # the exclusion of this package requested by "PIL" package hooks. To ensure PyInstaller parses this import
+        # and freezes this package with this test, this import is static.
+        try:
+            import tkinter
+        except ImportError:
+            raise SystemExit('ERROR: Module tkinter is NOT bundled.')
+        """
+    )
+
+
+@importorskip('PIL')
+@importorskip('matplotlib')
+def test_pil_no_matplotlib(pyi_builder):
+    """
+    Ensure that using PIL.Image does not pull in `matplotlib` when the latter is not explicitly imported by the program.
+    The import chain in question,
+    PIL.Image -> PIL -> PIL.ImageShow -> IPython -> matplotlib_inline.backend_inline -> matplotlib,
+    should be broken by the PIL hook excluding IPython.
+    """
+
+    pyi_builder.test_source(
+        """
+        import PIL.Image
+
+        # Use dynamic import of matplotlib to prevent PyInstaller from picking up the import.
+        try:
+            __import__('matplotlib')
+            raise SystemExit('ERROR: matplotlib is bundled.')
+        except ImportError:
+            pass
+        """
+    )
+
+
+# ---------------------------------------------------------------------------
+# SciPy
+# ---------------------------------------------------------------------------
+
+# Basic import test for each scipy module, to ensure that each module is importable on its own. Due to amount of tests,
+# run them only in onedir mode.
+@importorskip('scipy')
+@pytest.mark.parametrize(
+    'module', [
+        'scipy',
+        'scipy.cluster',
+        'scipy.constants',
+        'scipy.datasets',
+        'scipy.differentiate',
+        'scipy.fft',
+        'scipy.fftpack',
+        'scipy.integrate',
+        'scipy.interpolate',
+        'scipy.io',
+        'scipy.linalg',
+        'scipy.misc',
+        'scipy.ndimage',
+        'scipy.odr',
+        'scipy.optimize',
+        'scipy.signal',
+        'scipy.sparse',
+        'scipy.spatial',
+        'scipy.special',
+        'scipy.stats',
+    ]
+)
+@onedir_only
+def test_scipy(pyi_builder, module):
+    if not importable(module):
+        pytest.skip(f"Can't import {module!r}.")
+    pyi_builder.test_source(f"""
+        import {module}
+        """)
+
+
+# ---------------------------------------------------------------------------
+# PyGObject
+# ---------------------------------------------------------------------------
+
+# Names of all "gi.repository" packages provided by PyGObject  to be tested below, typically corresponding to
+# those packages hooked by PyInstaller.
+_gi_repositories = [
+    ('Gst', '1.0'),
+    ('GLib', '2.0'),
+    ('GModule', '2.0'),
+    ('GObject', '2.0'),
+    ('GdkPixbuf', '2.0'),
+    ('Gio', '2.0'),
+    ('Clutter', '1.0'),
+    ('GtkClutter', '1.0'),
+    ('Champlain', '0.12'),
+    ('GtkChamplain', '0.12'),
+]
+
+
+# Test the usability of "gi.repository" packages provided by PyGObject.
+@importorskip('gi.repository')
+@parametrize(
+    ('repository_name', 'version'),
+    [pytest.param(name, version, marks=importorskip(f'gi.repository.{name}')) for name, version in _gi_repositories],
+    ids=[name for name, version in _gi_repositories],  # Ensure human-readable test parameter names.
+)
+def test_gi_repository(pyi_builder, repository_name, version):
+    """
+    Test the importability of the `gi.repository` subpackage with the passed name installed with PyGObject. For example,
+    `GLib`, corresponds to the `gi.repository.GLib` subpackage. Version '1.0' are for PyGObject >=1.0,
+    '2.0' for PyGObject >= 2.0. Some other libraries have strange version (e.g., Champlain).
+    """
+
+    # Test the importability of this subpackage.
+    pyi_builder.test_source(
+        f"""
+        import sys
+        import pathlib
+
+        import gi
+
+        # Check that package/namespace can be imported
+        print("Importing module...", file=sys.stderr)
+        gi.require_version('{repository_name}', '{version}')
+        from gi.repository import {repository_name}
+        print(f"  Imported: {{{repository_name}}}", file=sys.stderr)
+
+        # Check that the typelib is, in fact, loaded from the frozen application (instead of falling back to the copy
+        # that is installed on the system).
+        print("Checking that module's typelib is loaded from frozen application...", file=sys.stderr)
+        repo = gi.Repository.get_default()
+        typelib_path = repo.get_typelib_path('{repository_name}')
+        print(f"  Typelib path: {{typelib_path}}", file=sys.stderr)
+
+        typelib_path = pathlib.Path(typelib_path).resolve()
+        application_path = pathlib.Path(sys._MEIPASS).resolve()
+        if application_path not in typelib_path.parents:
+            raise ValueError(f"Typelib {{str(typelib_path)!r}} is not loaded from frozen application's directory!")
+
+        # Similarly, ensure that all gi.repository sub-modules that are now registered in sys.modules (i.e., were loaded
+        # during the above import of the target module) are also loaded from the frozen application. This aims to catch
+        # implicit dependencies that were missed during collection, and are therefore loaded from the system.
+        print("Checking all loaded gi.repository sub-modules...", file=sys.stderr)
+        for module_name, module in sys.modules.items():
+            if not module_name.startswith('gi.repository.'):
+                continue
+            module_path = module.__path__[0]
+            module_path = pathlib.Path(module_path).resolve()
+            print(f"  Module: {{module_name!r}}, path: {{module_path!r}}", file=sys.stderr)
+
+            if application_path not in module_path.parents:
+                raise ValueError(f"Typelib {{str(module_path)!r}} is not loaded from frozen application's directory!")
+        """
+    )
+
+
+# GST_PLUGIN_PATH must point at the directory where the gi.repository.Gst hook puts the plugins.
+@importorskip('gi.repository.Gst')
+def test_gi_gst_plugin_path(pyi_builder):
+    pyi_builder.test_source(
+        """
+        import os
+        import sys
+
+        import gi
+        gi.require_version('Gst', '1.0')
+        from gi.repository import Gst
+
+        search_paths = os.environ['GST_PLUGIN_PATH'].split(os.pathsep)
+        print(f"GST_PLUGIN_PATH entries: {search_paths}", file=sys.stderr)
+
+        plugin_dir = os.path.join(sys._MEIPASS, 'gst_plugins')
+        if plugin_dir not in search_paths:
+            raise ValueError(f"Plugin directory {plugin_dir!r} is not in GST_PLUGIN_PATH: {search_paths}")
+
+        missing = [path for path in search_paths if not os.path.isdir(path)]
+        if missing:
+            raise ValueError(f"GST_PLUGIN_PATH contains non-existent directories: {missing}")
+        """
+    )
+
+
+# ---------------------------------------------------------------------------
+# pywin32
+# ---------------------------------------------------------------------------
+
+# pywin32 provides several modules that can be imported on their own, such as win32api or win32com.
+# They are located in three directories, which are added to search path via pywin32.pth:
+# - win32
+# - win32/lib
+# - pythonwin
+@importorskip('win32api')  # Use win32api to check for presence of pywin32.
+@pytest.mark.parametrize(
+    'module',
+    (
+        # Binary extensions from win32
+        'mmapfile',
+        'odbc',
+        'perfmon',
+        'servicemanager',
+        'timer',
+        'win32api',
+        'win32clipboard',
+        'win32console',
+        'win32cred',
+        'win32crypt',
+        'win32event',
+        'win32evtlog',
+        'win32file',
+        'win32gui',
+        'win32help',
+        'win32inet',
+        'win32job',
+        'win32lz',
+        'win32net',
+        'win32pdh',
+        'win32pipe',
+        'win32print',
+        'win32process',
+        'win32profile',
+        'win32ras',
+        'win32security',
+        'win32service',
+        '_win32sysloader',
+        'win32trace',
+        'win32transaction',
+        'win32ts',
+        'win32wnet',
+        '_winxptheme',
+        # Python modules from win32/lib
+        'afxres',
+        'commctrl',
+        'dbi',
+        'mmsystem',
+        'netbios',
+        'ntsecuritycon',
+        'pywin32_bootstrap',
+        'pywin32_testutil',
+        'pywintypes',
+        'rasutil',
+        'regcheck',
+        'regutil',
+        'sspicon',
+        'sspi',
+        'win2kras',
+        'win32con',
+        'win32cryptcon',
+        'win32evtlogutil',
+        'win32gui_struct',
+        'win32inetcon',
+        'win32netcon',
+        'win32pdhquery',
+        'win32pdhutil',
+        'win32rcparser',
+        'win32serviceutil',
+        'win32timezone',
+        'win32traceutil',
+        'win32verstamp',
+        'winerror',
+        'winioctlcon',
+        'winnt',
+        'winperf',
+        'winxptheme',
+        # Binary extensions from pythonwin
+        'dde',
+        'win32uiole',
+        'win32ui',
+        # Python package from pythonwin
+        'pywin',
+        # Packages/modules in top-level directory
+        'adodbapi',
+        'isapi',
+        'win32com',
+        'win32comext',
+        'pythoncom',
+    )
+)
+@onedir_only
+def test_pywin32_imports(pyi_builder, module):
+    if not can_import_module(module):
+        pytest.skip(f"Module '{module}' cannot be imported.")
+
+    # Basic import test
+    pyi_builder.test_source(f"""
+        import {module}
+        """)
+
+
+@importorskip('win32com')
+def test_pywin32_win32com(pyi_builder):
+    pyi_builder.test_source(
+        """
+        # Test importing some modules from pywin32 package.
+        # All modules from pywin32 depens on module pywintypes.
+        # This module should be also included.
+        import win32com
+        import win32com.client
+        import win32com.server
+        """
+    )
+
+
+@importorskip('win32com')
+def test_pywin32_comext(pyi_builder):
+    pyi_builder.test_source(
+        """
+        # Test importing modules from win32com that are actually present in
+        # win32comext, and made available by __path__ changes in win32com.
+        from win32com.shell import shell
+        from win32com.propsys import propsys
+        from win32com.bits import bits
+        """
+    )
+
+
+@importorskip('win32ui')
+def test_pywin32_win32ui(pyi_builder):
+    pyi_builder.test_source(
+        """
+        # Test importing some modules from pywin32 package.
+        # All modules from pywin32 depens on module pywintypes.
+        # This module should be also included.
+        import win32ui
+        from pywin.mfc.dialog import Dialog
+        d = Dialog(win32ui.IDD_SIMPLE_INPUT)
+        """
+    )
+
+
+# ---------------------------------------------------------------------------
+# Django
+# ---------------------------------------------------------------------------
+
+@importorskip('django')
+def test_django(pyi_builder, monkeypatch, data_dir):
+    # Extend sys.path so PyInstaller could find modules from 'tmpdir/django/'.
+    monkeypatch.syspath_prepend(str(data_dir))
+    # Django uses manage.py as the main script.
+    script = data_dir / 'manage.py'
+    # Create the exe, run django command 'check' to do basic sanity checking of the executable.
+    pyi_builder.test_script(script, app_name='django_site', app_args=['check'])
