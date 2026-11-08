@@ -160,11 +160,30 @@ for prefix in ('', 'ctypes.'):
         _ctypes_parameters.append(params)
 
 
+@pytest.mark.parametrize("in_function", [False, True], ids=['direct', 'in_function'])
 @pytest.mark.parametrize("funcname,test_id", _ctypes_parameters, ids=_ctypes_ids)
-def test_ctypes_bindings(pyi_builder, monkeypatch, compiled_dylib, funcname, test_id):
+def test_ctypes_bindings(pyi_builder, monkeypatch, compiled_dylib, funcname, test_id, in_function):
     # Evaluate the soname here, so the test-code contains a constant. We want the name of the dynamically-loaded library
     # only, not its path. See discussion in https://github.com/pyinstaller/pyinstaller/pull/1478#issuecomment-139622994.
     soname = compiled_dylib.name
+
+    # The `in_function` variant puts the ctypes calls into (nested) functions; see issue #1620.
+    if in_function:
+        load_snippet = f"""
+        # Load the library.
+        def f():
+            def g():
+                lib = {funcname}({soname!r})
+                return lib
+            return g()
+
+        lib = f()
+"""
+    else:
+        load_snippet = f"""
+        # Load the library.
+        lib = {funcname}({soname!r})
+"""
 
     # Patch _resolveCtypesImports tp extend search path with the parent directory of the compiled shared library.
     _monkeypatch_resolveCtypesImports(monkeypatch, compiled_dylib.parent)
@@ -177,45 +196,7 @@ def test_ctypes_bindings(pyi_builder, monkeypatch, compiled_dylib, funcname, tes
         # Both imports allow us to prefixed and non-prefixed funcname.
         import ctypes
         from ctypes import *
-
-        # Load the library.
-        lib = {funcname}({soname!r})
-        print(f"Loaded library handle: {{lib}}")
-
-        libfile = os.path.join(sys._MEIPASS, {soname!r})
-        assert os.path.isfile(libfile), f'Shared library {{soname}} not found in top-level application directory!'
-
-        # NOTE: since we are using our own compiled test library, we do not need to explicitly check that the bundled
-        # copy is loaded.
-        """,
-        test_id=test_id,
-    )
-
-
-@pytest.mark.parametrize("funcname,test_id", _ctypes_parameters, ids=_ctypes_ids)
-def test_ctypes_bindings_in_function(pyi_builder, monkeypatch, compiled_dylib, funcname, test_id):
-    # This is much like test_ctypes_bindings except that the ctypes calls are in a function. See issue #1620.
-    soname = compiled_dylib.name
-
-    _monkeypatch_resolveCtypesImports(monkeypatch, compiled_dylib.parent)
-
-    pyi_builder.test_source(
-        f"""
-        import os
-        import sys
-
-        # Both imports allow us to prefixed and non-prefixed funcname.
-        import ctypes
-        from ctypes import *
-
-        # Load the library.
-        def f():
-            def g():
-                lib = {funcname}({soname!r})
-                return lib
-            return g()
-
-        lib = f()
+{load_snippet}
         print(f"Loaded library handle: {{lib}}")
 
         libfile = os.path.join(sys._MEIPASS, {soname!r})
