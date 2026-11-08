@@ -222,28 +222,15 @@ def test_single_file_metadata(pyi_builder):
 # Python versions prior to 3.14.1 are able to import such modules; however, starting with python 3.14.1, a SyntaxError
 # is raised. See: https://github.com/python/cpython/commit/9ff705c
 @pytest.mark.skipif(sys.version_info >= (3, 14, 1), reason="python >= 3.14.1 disallows invalid characters")
-def test_program_importing_module_with_invalid_encoding1(pyi_builder):
+@pytest.mark.parametrize("module_name", ['mymodule1', 'mymodule2'], ids=['1', '2'])
+def test_program_importing_module_with_invalid_encoding(pyi_builder, module_name):
     # Add directory containing the my-test-package metadata to search path
     extra_path = _MODULES_DIR / "pyi_module_with_invalid_encoding"
 
     pyi_builder.test_source(
-        """
-        import mymodule1
-        assert mymodule1.hello() == "hello"
-        """,
-        pyi_args=['--paths', str(extra_path)]
-    )
-
-
-@pytest.mark.skipif(sys.version_info >= (3, 14, 1), reason="python >= 3.14.1 disallows invalid characters")
-def test_program_importing_module_with_invalid_encoding2(pyi_builder):
-    # Add directory containing the my-test-package metadata to search path
-    extra_path = _MODULES_DIR / "pyi_module_with_invalid_encoding"
-
-    pyi_builder.test_source(
-        """
-        import mymodule2
-        assert mymodule2.hello() == "hello"
+        f"""
+        import {module_name}
+        assert {module_name}.hello() == "hello"
         """,
         pyi_args=['--paths', str(extra_path)]
     )
@@ -287,29 +274,29 @@ def test_bundled_shell_script(pyi_builder, tmp_path):
 # refers to the program's entry-point. Currently, this seems to be a problem only on Windows, where modulegraph manages
 # to resolve `__main__` into `.../PyInstaller.exe/__main__.py` (or `.../pytest.exe/__main__.py`). On Linux and macOS,
 # modulegraph does not seem to be able to resolve `__main__`.
-def test_import_main_should_not_collect_pyinstaller1(pyi_builder):
-    hooks_dir = _MODULES_DIR / 'pyi_import_main' / 'hooks'
-    pyi_builder.test_source(
-        """
+@pytest.mark.parametrize(
+    "source",
+    [
         # Plain import.
+        """
         import __main__
         print(__main__)
         """,
-        pyi_args=['--additional-hooks-dir', str(hooks_dir)]
-    )
-
-
-def test_import_main_should_not_collect_pyinstaller2(pyi_builder):
-    hooks_dir = _MODULES_DIR / 'pyi_import_main' / 'hooks'
-    pyi_builder.test_source(
-        """
         # Import __main__ in the same way as `pkg_resources` and its vendored variants
         # (e.g., `pip._vendor.pkg_resources`) do.
+        """
         try:
             from __main__ import __requires__
         except ImportError:
             pass
         """,
+    ],
+    ids=['plain', 'pkg_resources'],
+)
+def test_import_main_should_not_collect_pyinstaller(pyi_builder, source):
+    hooks_dir = _MODULES_DIR / 'pyi_import_main' / 'hooks'
+    pyi_builder.test_source(
+        source,
         pyi_args=['--additional-hooks-dir', str(hooks_dir)]
     )
 
