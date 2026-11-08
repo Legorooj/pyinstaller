@@ -140,10 +140,6 @@ norecursedirs = [
 addopts = "-v -rsfE -p no:legacypath --strict-markers"
 
 filterwarnings = [
-    # In vendored unit/test_modulegraph tests
-    "ignore:Please use assertEqual instead.:DeprecationWarning",
-    # tests/unit/test_modulegraph/test_modulegraph.py::TestFunctions::test_os_listdir
-    "ignore:Use zipio.listdir instead of os_listdir:DeprecationWarning:",
     # Enable Python's improperly closed file handle detection...
     "error::ResourceWarning:",
     # ... and force pytest to raise an error if the ResourceWarning is emitted during test cleanup.
