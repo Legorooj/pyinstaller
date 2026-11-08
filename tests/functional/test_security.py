@@ -20,6 +20,7 @@ import sys
 import pytest
 
 from PyInstaller import compat
+from PyInstaller.utils.tests import create_symlink
 
 # PYI_PROCESS_LEVEL enum values from bootloader/src/pyi_main.h
 PYI_PROCESS_LEVEL_UNKNOWN = -2
@@ -601,23 +602,18 @@ def test_security_validation_with_symlinked_executable(pyi_builder, tmp_path, mo
     # Enable onefile parent-process verification on the build
     _enable_onefile_parent_verification(monkeypatch)
 
-    # Ensure that symbolic links can be created
-    try:
-        test_dir = tmp_path / 'sanity-check' / 'test-dir'
-        test_dir.mkdir(parents=True)
-        test_file = tmp_path / 'sanity-check' / 'test-file.txt'
-        test_file.write_text('Test', encoding='utf-8')
+    # Ensure that symbolic links can be created (create_symlink() skips the test if they cannot be created on
+    # Windows).
+    test_dir = tmp_path / 'sanity-check' / 'test-dir'
+    test_dir.mkdir(parents=True)
+    test_file = tmp_path / 'sanity-check' / 'test-file.txt'
+    test_file.write_text('Test', encoding='utf-8')
 
-        test_dir_symlink = tmp_path / 'sanity-check' / 'test-dir-symlink'
-        test_file_symlink = tmp_path / 'sanity-check' / 'test-file-symlink.txt'
+    test_dir_symlink = tmp_path / 'sanity-check' / 'test-dir-symlink'
+    test_file_symlink = tmp_path / 'sanity-check' / 'test-file-symlink.txt'
 
-        os.symlink(test_file, test_file_symlink)
-        os.symlink(test_dir, test_dir_symlink, target_is_directory=True)
-    except OSError:
-        if compat.is_win:
-            pytest.skip("OS does not support creation of symbolic links.")
-        else:
-            raise
+    create_symlink(test_file, test_file_symlink)
+    create_symlink(test_dir, test_dir_symlink, target_is_directory=True)
 
     # Basic test application
     pyi_builder.test_source("""

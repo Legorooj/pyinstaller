@@ -16,6 +16,7 @@ import subprocess
 import pytest
 
 from PyInstaller.compat import is_win
+from PyInstaller.utils.tests import create_symlink
 
 
 # Test that bootloader is able to fully resolve a symlinked executable, on all OSes.
@@ -47,7 +48,7 @@ def test_bootloader_symlinked_executable(pyi_builder, tmp_path):
     rel_link = os.path.relpath(executable, subdir)  # Compute relative link
     print(f"Relative symbolic link: {symlink1} -> {rel_link}", file=sys.stderr)
 
-    _create_symlink(rel_link, symlink1)
+    create_symlink(rel_link, symlink1)
 
     subprocess.check_call([symlink1])
 
@@ -56,25 +57,9 @@ def test_bootloader_symlinked_executable(pyi_builder, tmp_path):
     symlink2 = tmp_path / f'absolute-symlink{exe_suffix}'
     print(f"Absolute symbolic link: {symlink2} -> {symlink1}", file=sys.stderr)
 
-    _create_symlink(symlink1, symlink2)
+    create_symlink(symlink1, symlink2)
 
     subprocess.check_call([symlink2])
-
-
-# Wrapper for os.symlink that skips the test if symlink cannot be created on Windows.
-def _create_symlink(src, dst, *args, **kwargs):
-    # On Windows, symlinks need to use Windows-style backslashes, even if we are under msys2/mingw python that uses
-    # POSIX-style separators. `src` might be a Path-like object, so explicitly convert it to string.
-    if is_win and os.sep == '/':
-        src = str(src).replace(os.sep, '\\')
-
-    try:
-        os.symlink(src, dst, **kwargs)
-    except OSError:
-        if is_win:
-            pytest.skip("OS does not support creation of symbolic links.")
-        else:
-            raise
 
 
 def _create_data(tmp_path, orig_filename, link_filename):
@@ -91,7 +76,7 @@ def _create_data(tmp_path, orig_filename, link_filename):
     abs_linked_filename.parent.mkdir(parents=True, exist_ok=True)
     rel_orig_filename = os.path.relpath(abs_orig_filename, abs_linked_filename.parent)
 
-    _create_symlink(rel_orig_filename, abs_linked_filename)
+    create_symlink(rel_orig_filename, abs_linked_filename)
 
 
 # Test collection of symlinked data files: the matrix below covers the three locations of the symbolic link relative
@@ -218,13 +203,13 @@ def _prepare_chained_links_example(tmp_path):
     (data_path / "file_a").write_text("secret", encoding='utf-8')
 
     # Create symbolic link: file_b -> file_a
-    _create_symlink("file_a", data_path / "file_b")
+    create_symlink("file_a", data_path / "file_b")
 
     # Create symbolic link: file_c -> file_b
-    _create_symlink("file_b", data_path / "file_c")
+    create_symlink("file_b", data_path / "file_c")
 
     # Create symbolic link: file_d -> file_c
-    _create_symlink("file_c", data_path / "file_d")
+    create_symlink("file_c", data_path / "file_d")
 
     return data_path
 
@@ -343,19 +328,19 @@ def _prepare_parent_directory_link_example(tmp_path):
     (original_dir / "file_a").write_text("secret", encoding='utf-8')
 
     # Create symbolic link: file_b -> file_a
-    _create_symlink("file_a", original_dir / "file_b")
+    create_symlink("file_a", original_dir / "file_b")
 
     # Create symbolic link: file_c -> file_b
-    _create_symlink("file_b", original_dir / "file_c")
+    create_symlink("file_b", original_dir / "file_c")
 
     # Create symbolic link: file_d -> file_c
-    _create_symlink("file_c", original_dir / "file_d")
+    create_symlink("file_c", original_dir / "file_d")
 
     # Create a symbolic link at the directory level
     linked_dir = data_path / "linked"
     linked_dir.mkdir(parents=True)
 
-    _create_symlink(
+    create_symlink(
         os.path.join('..', 'original', 'mydata', 'v1.0.0'),
         linked_dir / 'mydata-v1.0.0',
         target_is_directory=True,

@@ -18,7 +18,7 @@ import json
 import pytest
 
 from PyInstaller import compat
-from PyInstaller.utils.tests import onefile_only
+from PyInstaller.utils.tests import create_symlink, onefile_only
 
 # Directory with testing modules used in some tests.
 _MODULES_DIR = pathlib.Path(__file__).parent / 'modules'
@@ -156,11 +156,9 @@ def test_onefile_cleanup_symlinked_dir(pyi_builder, tmp_path):
         output_file = output_dir / f'preexisting-{idx}.txt'
         output_file.write_text(f"Pre-existing file #{idx}", encoding='utf-8')
 
-    # Check if OS supports creation of symbolic links
-    try:
-        (tmp_path / 'testdir').symlink_to(output_dir)
-    except OSError:
-        pytest.skip("OS does not support (unprivileged) creation of symbolic links.")
+    # Check if OS supports creation of symbolic links (create_symlink() skips the test if they cannot be created on
+    # Windows; on other OS-es creation is expected to work, so an error propagates).
+    create_symlink(output_dir, tmp_path / 'testdir', target_is_directory=True)
 
     # Run the test program
     pyi_builder.test_source(
