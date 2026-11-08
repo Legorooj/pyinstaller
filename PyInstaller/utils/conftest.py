@@ -529,15 +529,18 @@ class AppBuilder:
             default_args.extend(shlex.split(extra_arg))
 
         pyi_args = [self.script, *default_args, *args]
-        # TODO: fix return code in running PyInstaller programmatically.
         PYI_CONFIG = configure.get_config()
         # Override CACHEDIR for PyInstaller; relocate cache into `self._bincache_path`.
         PYI_CONFIG['cachedir'] = str(self._bincache_path)
 
-        pyi_main.run(pyi_args, PYI_CONFIG)
-        retcode = 0
+        # A failed build propagates as SystemExit (with the error message) from pyi_main.run(); translate it into the
+        # boolean that _test_script()'s "Building of ... failed" pytest.fail() reports.
+        try:
+            pyi_main.run(pyi_args, PYI_CONFIG)
+        except SystemExit:
+            return False
 
-        return retcode == 0
+        return True
 
     def _examine_executable(self, exe, toc_log):
         """
